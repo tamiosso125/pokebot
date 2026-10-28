@@ -57,3 +57,41 @@ def test_manual_listing_is_deduplicated_by_url():
     b = manual_listing("olx", "https://olx.com.br/x", "Pikachu", 25)
     assert db.upsert_listing(conn, a)[1] is True
     assert db.upsert_listing(conn, b)[1] is False
+
+
+def test_ml_fetches_app_token_with_client_credentials_and_reuses_it():
+    seen = {"token_calls": 0, "auth": []}
+
+    def handler(request):
+        if request.url.path == "/oauth/token":
+            seen["token_calls"] += 1
+            assert b"grant_type=client_credentials" in request.content
+            return httpx.Response(200, json={"access_token": "abc", "expires_in": 21600})
+        seen["auth"].append(request.headers.get("authorization"))
+        return httpx.Response(200, json={"results": []})
+
+    src = MercadoLivreSource(httpx.Client(transport=httpx.MockTransport(handler)), client_id="id", client_secret="sec")
+    src.search("a")
+    src.search("b")
+    assert seen == {"token_calls": 1, "auth": ["Bearer abc", "Bearer abc"]}
+
+
+def test_ml_refreshes_token_once_on_401():
+    state = {"tokens": 0}
+
+    def handler(request):
+        if request.url.path == "/oauth/token":
+            state["tokens"] += 1
+            return httpx.Response(200, json={"access_token": f"t{state['tokens']}", "expires_in": 21600})
+        ok = request.headers["authorization"] == "Bearer t2"
+        return httpx.Response(200 if ok else 401, json={"results": []})
+
+    src = MercadoLivreSource(httpx.Client(transport=httpx.MockTransport(handler)), client_id="id", client_secret="sec")
+    assert src.search("a") == []
+    assert state["tokens"] == 2
+
+
+def test_ml_bad_client_credentials_raise_clear_error():
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(400, json={})))
+    with pytest.raises(SourceAccessError, match="MELI_CLIENT_ID"):
+        MercadoLivreSource(client, client_id="id", client_secret="bad").search("a")

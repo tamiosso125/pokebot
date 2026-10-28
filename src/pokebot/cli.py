@@ -3,7 +3,7 @@ import os
 
 import httpx
 
-from pokebot import catalog, db, matching, valuation, vision
+from pokebot import catalog, dashboard, db, matching, valuation, vision, watch
 from pokebot.config import Settings
 from pokebot.sources.base import SourceAccessError
 from pokebot.sources.manual import manual_listing
@@ -36,6 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("analyze", help="analisa as fotos dos anúncios novos (carta e condição); cada anúncio custa uma chamada à API")
     s.add_argument("--limit", type=int, default=10, help="máximo de anúncios por execução (controla o custo)")
 
+    s = sub.add_parser("watch", help="roda sem parar: busca, analisa e avisa no Telegram os anúncios bons")
+    s.add_argument("--interval", type=float, default=15, help="minutos entre rodadas")
+    s.add_argument("--once", action="store_true", help="faz só uma rodada e sai")
+
+    s = sub.add_parser("dashboard", help="abre o painel local no navegador")
+    s.add_argument("--port", type=int, default=8000)
+
     s = sub.add_parser("list", help="mostra os anúncios gravados, mais novos primeiro")
     s.add_argument("--limit", type=int, default=20)
     return p
@@ -48,12 +55,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "sync-catalog":
         with httpx.Client(timeout=30) as client:
-            n = catalog.sync_cards(conn, client, args.query, settings.pokemontcg_api_key)
+            try:
+                n = catalog.sync_cards(conn, client, args.query, settings.pokemontcg_api_key)
+            except catalog.CatalogError as e:
+                print(e)
+                return 1
         print(f"{n} cartas sincronizadas")
     elif args.cmd == "search-ml":
         with httpx.Client(timeout=30) as client:
             try:
-                listings = MercadoLivreSource(client, settings.meli_access_token).search(args.query, args.limit)
+                listings = MercadoLivreSource(
+                    client, settings.meli_access_token, settings.meli_client_id, settings.meli_client_secret
+                ).search(args.query, args.limit)
             except SourceAccessError as e:
                 print(e)
                 return 1
@@ -80,6 +93,21 @@ def main(argv: list[str] | None = None) -> int:
         done, failed = vision.analyze_pending(conn, anthropic.Anthropic(), settings.vision_model, args.limit)
         matching.link_listings(conn)
         print(f"{done} anúncios analisados, {failed} falhas")
+    elif args.cmd == "watch":
+        vision_client = None
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            import anthropic
+
+            vision_client = anthropic.Anthropic()
+        if not (settings.telegram_bot_token and settings.telegram_chat_id):
+            print("Aviso: TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID não definidos; a coleta roda, mas sem alertas.")
+        if args.once:
+            with httpx.Client(timeout=30) as http:
+                print(watch.run_cycle(conn, settings, http, vision_client))
+        else:
+            watch.watch_forever(conn, settings, args.interval, vision_client)
+    elif args.cmd == "dashboard":
+        dashboard.serve(settings, args.port)
     elif args.cmd == "list":
         rows = conn.execute(
             "SELECT l.source, l.title, l.price, l.currency, l.url, l.card_id, c.name AS card_name,"

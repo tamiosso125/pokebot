@@ -34,3 +34,30 @@ def test_sync_paginates_and_upserts():
     assert rows == {"a": 1.0, "b": None}
     catalog.sync_cards(conn, client, "name:charizard")
     assert conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0] == 2
+
+
+def test_fetch_retries_on_5xx_then_succeeds(monkeypatch):
+    monkeypatch.setattr(catalog, "_sleep", lambda s: None)
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(500)
+        return httpx.Response(200, json={"data": [card("a", {})], "totalCount": 1})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert [c["id"] for c in catalog.fetch_cards(client, "name:x*")] == ["a"]
+    assert len(calls) == 3
+
+
+def test_fetch_gives_readable_error_after_retries_and_on_4xx(monkeypatch):
+    import pytest
+
+    monkeypatch.setattr(catalog, "_sleep", lambda s: None)
+    always_500 = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    with pytest.raises(catalog.CatalogError, match="indisponível"):
+        list(catalog.fetch_cards(always_500, "name:rayquaza v"))
+    bad = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(400)))
+    with pytest.raises(catalog.CatalogError, match="sintaxe"):
+        list(catalog.fetch_cards(bad, "x"))
