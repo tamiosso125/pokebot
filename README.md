@@ -23,7 +23,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # e exporte as variáveis, se for usar chaves
 
-pokebot sync-catalog --query 'name:charizard'
+pokebot sync-catalog --query 'name:charizard*'
 pokebot search-ml --query 'carta pokemon charizard'
 pokebot add-manual --source olx --url https://... --title 'Charizard base' --price 120 --image https://...
 pokebot match                      # liga anúncios às cartas do catálogo
@@ -35,8 +35,14 @@ pokebot list                       # mostra anúncio vs. preço de referência
 pytest
 ```
 
-> A busca pública do Mercado Livre pode exigir token. Se responder 401/403, o comando avisa; crie um app em developers.mercadolivre.com.br e defina `MELI_ACCESS_TOKEN`. Este coletor ainda não foi testado contra a API real.
+> A busca do Mercado Livre exige token (a busca pública responde 403). Crie um app em developers.mercadolivre.com.br e defina `MELI_CLIENT_ID` e `MELI_CLIENT_SECRET`; o programa pede e renova o token sozinho. Ainda não validado contra a API real.
 
 > Condição vem de fotos: é uma estimativa, não nota oficial. Miniaturas do Mercado Livre são pequenas e rendem análise fraca; prefira fotos grandes.
 
 Para rodar o vigia e o painel juntos, abra dois terminais (um com `pokebot watch`, outro com `pokebot dashboard`); eles compartilham o mesmo banco.
+
+## Windows (PowerShell)
+
+- Ative o ambiente com `.venv\Scripts\Activate.ps1` (o `source` é do Linux/Mac) e defina chaves com `$env:NOME="valor"` (vale só para aquela janela).
+- O PowerShell remove aspas duplas de dentro de argumentos: em vez de `name:"rayquaza v"`, use curinga, `--query "name:rayquaza*"`.
+- Se `pokebot` não for reconhecido, use `python -m pokebot.cli <comando>`.

@@ -1,10 +1,17 @@
 import sqlite3
+import time
 from collections.abc import Iterator
 
 import httpx
 
 from pokebot.db import now
 
+class CatalogError(Exception):
+    """O pokemontcg.io não respondeu direito mesmo depois de novas tentativas."""
+
+
+RETRIES = 3
+_sleep = time.sleep
 API_URL = "https://api.pokemontcg.io/v2/cards"
 PAGE_SIZE = 250
 # Ordem de preferência quando a carta tem mais de uma variante de preço no TCGPlayer.
@@ -22,17 +29,37 @@ def market_price_usd(card: dict) -> float | None:
     return None
 
 
+def _get_page(client: httpx.Client, query: str, page: int, headers: dict) -> dict:
+    """O pokemontcg.io responde 5xx/timeout com frequência: tenta algumas vezes antes de desistir."""
+    last = ""
+    for attempt in range(RETRIES):
+        if attempt:
+            _sleep(2 ** attempt)
+        try:
+            resp = client.get(API_URL, params={"q": query, "page": page, "pageSize": PAGE_SIZE}, headers=headers)
+        except httpx.TransportError as e:
+            last = f"falha de rede ({e.__class__.__name__})"
+            continue
+        if resp.status_code >= 500:
+            last = f"HTTP {resp.status_code}"
+            continue
+        if resp.status_code >= 400:
+            raise CatalogError(
+                f"pokemontcg.io recusou a busca {query!r} (HTTP {resp.status_code}). "
+                "Confira a sintaxe: ex. name:rayquaza* ou number:194 set.printedTotal:203."
+            )
+        return resp.json()
+    raise CatalogError(
+        f"pokemontcg.io indisponível para a busca {query!r} ({last}) depois de {RETRIES} tentativas. "
+        "Se a busca tem espaços, use curinga (name:rayquaza*) ou tente de novo mais tarde."
+    )
+
+
 def fetch_cards(client: httpx.Client, query: str, api_key: str | None = None) -> Iterator[dict]:
     headers = {"X-Api-Key": api_key} if api_key else {}
     page = 1
     while True:
-        resp = client.get(
-            API_URL,
-            params={"q": query, "page": page, "pageSize": PAGE_SIZE},
-            headers=headers,
-        )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _get_page(client, query, page, headers)
         yield from body["data"]
         if page * PAGE_SIZE >= body.get("totalCount", 0) or not body["data"]:
             return

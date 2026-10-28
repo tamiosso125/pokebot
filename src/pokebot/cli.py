@@ -55,12 +55,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "sync-catalog":
         with httpx.Client(timeout=30) as client:
-            n = catalog.sync_cards(conn, client, args.query, settings.pokemontcg_api_key)
+            try:
+                n = catalog.sync_cards(conn, client, args.query, settings.pokemontcg_api_key)
+            except catalog.CatalogError as e:
+                print(e)
+                return 1
         print(f"{n} cartas sincronizadas")
     elif args.cmd == "search-ml":
         with httpx.Client(timeout=30) as client:
             try:
-                listings = MercadoLivreSource(client, settings.meli_access_token).search(args.query, args.limit)
+                listings = MercadoLivreSource(
+                    client, settings.meli_access_token, settings.meli_client_id, settings.meli_client_secret
+                ).search(args.query, args.limit)
             except SourceAccessError as e:
                 print(e)
                 return 1

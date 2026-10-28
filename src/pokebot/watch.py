@@ -12,7 +12,7 @@ from pokebot.sources.mercadolivre import MercadoLivreSource
 def run_cycle(conn: sqlite3.Connection, settings: Settings, http: httpx.Client, vision_client=None) -> dict:
     """Uma rodada: busca, associa à carta, analisa fotos (se houver chave) e avisa os anúncios bons."""
     stats = {"new": 0, "errors": [], "analyzed": 0, "alerts": 0}
-    source = MercadoLivreSource(http, settings.meli_access_token)
+    source = MercadoLivreSource(http, settings.meli_access_token, settings.meli_client_id, settings.meli_client_secret)
     for query in settings.queries:
         try:
             listings = source.search(query)

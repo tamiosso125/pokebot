@@ -11,7 +11,7 @@ from pokebot.sources.base import Listing
 
 
 def settings(tmp_path, **kw):
-    base = dict(db_path=str(tmp_path / "t.db"), pokemontcg_api_key=None, meli_access_token=None, usd_brl=5.0,
+    base = dict(db_path=str(tmp_path / "t.db"), pokemontcg_api_key=None, meli_access_token=None, meli_client_id=None, meli_client_secret=None, usd_brl=5.0,
                 vision_model="m", telegram_bot_token="tok", telegram_chat_id="42", min_discount_pct=30,
                 queries=["carta pokemon"])
     return Settings(**{**base, **kw})
