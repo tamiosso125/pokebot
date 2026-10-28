@@ -54,9 +54,11 @@ class MercadoLivreSource:
             self._expires_at = 0.0  # token vencido: pega outro e repete uma vez
             resp = self._get(query, limit)
         if resp.status_code in (401, 403, 429):
+            auth = "com token do app" if self.access_token else "sem token (MELI_CLIENT_ID/MELI_CLIENT_SECRET não definidos)"
             raise SourceAccessError(
-                f"Mercado Livre recusou a busca (HTTP {resp.status_code}). "
-                "Crie um app em developers.mercadolivre.com.br e defina MELI_CLIENT_ID e MELI_CLIENT_SECRET."
+                f"Mercado Livre recusou a busca (HTTP {resp.status_code}, {auth}). "
+                f"Resposta: {resp.text[:300]!r}. "
+                "Sem token, crie um app em developers.mercadolivre.com.br e defina MELI_CLIENT_ID e MELI_CLIENT_SECRET."
             )
         resp.raise_for_status()
         return [self._parse(item) for item in resp.json().get("results", [])]

@@ -95,3 +95,17 @@ def test_ml_bad_client_credentials_raise_clear_error():
     client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(400, json={})))
     with pytest.raises(SourceAccessError, match="MELI_CLIENT_ID"):
         MercadoLivreSource(client, client_id="id", client_secret="bad").search("a")
+
+
+def test_ml_403_message_says_whether_token_was_used_and_shows_body():
+    def forbidden(request):
+        if request.url.path == "/oauth/token":
+            return httpx.Response(200, json={"access_token": "abc", "expires_in": 21600})
+        return httpx.Response(403, json={"message": "blocked by policy"})
+
+    with_token = MercadoLivreSource(httpx.Client(transport=httpx.MockTransport(forbidden)), client_id="i", client_secret="s")
+    with pytest.raises(SourceAccessError, match="com token do app.*blocked by policy"):
+        with_token.search("a")
+    without = MercadoLivreSource(httpx.Client(transport=httpx.MockTransport(forbidden)))
+    with pytest.raises(SourceAccessError, match="sem token"):
+        without.search("a")
