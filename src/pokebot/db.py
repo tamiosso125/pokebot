@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS listings (
     seller TEXT,
     condition_text TEXT,
     card_id TEXT REFERENCES cards (id),
+    notified_at TEXT,
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     UNIQUE (source, external_id)
@@ -84,6 +85,7 @@ def _add_missing_columns(conn: sqlite3.Connection) -> None:
     for table, column, ddl in (
         ("cards", "set_printed_total", "INTEGER"),
         ("listings", "card_id", "TEXT REFERENCES cards (id)"),
+        ("listings", "notified_at", "TEXT"),
     ):
         cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in cols:

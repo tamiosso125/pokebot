@@ -9,6 +9,10 @@ class Settings:
     meli_access_token: str | None
     usd_brl: float
     vision_model: str
+    telegram_bot_token: str | None
+    telegram_chat_id: str | None
+    min_discount_pct: float
+    queries: list[str]
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -18,4 +22,8 @@ class Settings:
             meli_access_token=os.environ.get("MELI_ACCESS_TOKEN") or None,
             usd_brl=float(os.environ.get("USD_BRL", "5.50")),
             vision_model=os.environ.get("POKEBOT_VISION_MODEL", "claude-sonnet-5-5"),
+            telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN") or None,
+            telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID") or None,
+            min_discount_pct=float(os.environ.get("MIN_DISCOUNT_PCT", "30")),
+            queries=[q.strip() for q in os.environ.get("POKEBOT_QUERIES", "carta pokemon").split(";") if q.strip()],
         )
