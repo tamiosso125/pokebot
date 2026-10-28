@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS cards (
     number TEXT,
     set_id TEXT,
     set_name TEXT,
+    set_printed_total INTEGER,
     rarity TEXT,
     image_url TEXT,
     price_usd_market REAL,
@@ -28,9 +29,17 @@ CREATE TABLE IF NOT EXISTS listings (
     url TEXT NOT NULL,
     seller TEXT,
     condition_text TEXT,
+    card_id TEXT REFERENCES cards (id),
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     UNIQUE (source, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS liga_prices (
+    card_id TEXT PRIMARY KEY REFERENCES cards (id),
+    price_brl REAL NOT NULL,
+    url TEXT,
+    collected_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS listing_images (
@@ -52,7 +61,20 @@ def connect(path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _add_missing_columns(conn)
     return conn
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    """Bancos criados na etapa 1 não têm estas colunas."""
+    for table, column, ddl in (
+        ("cards", "set_printed_total", "INTEGER"),
+        ("listings", "card_id", "TEXT REFERENCES cards (id)"),
+    ):
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+    conn.commit()
 
 
 def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> tuple[int, bool]:

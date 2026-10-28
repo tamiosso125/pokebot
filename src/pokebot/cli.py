@@ -2,7 +2,7 @@ import argparse
 
 import httpx
 
-from pokebot import catalog, db
+from pokebot import catalog, db, matching, valuation
 from pokebot.config import Settings
 from pokebot.sources.base import SourceAccessError
 from pokebot.sources.manual import manual_listing
@@ -26,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--title", required=True)
     s.add_argument("--price", type=float)
     s.add_argument("--image", action="append", default=[], help="URL de foto (repetível)")
+
+    s = sub.add_parser("import-liga", help="importa preços da LigaPokemon de um CSV (nome,numero,preco_brl,url)")
+    s.add_argument("csv")
+
+    sub.add_parser("match", help="associa anúncios às cartas do catálogo pelo número impresso (ex.: 194/203)")
 
     s = sub.add_parser("list", help="mostra os anúncios gravados, mais novos primeiro")
     s.add_argument("--limit", type=int, default=20)
@@ -55,14 +60,33 @@ def main(argv: list[str] | None = None) -> int:
             conn, manual_listing(args.source, args.url, args.title, args.price, args.image)
         )
         print("anúncio adicionado" if is_new else "anúncio já existia (atualizado)")
+    elif args.cmd == "import-liga":
+        n, unmatched = valuation.import_liga_prices(conn, args.csv)
+        print(f"{n} preços importados")
+        for name in unmatched:
+            print(f"  sem carta no catálogo (rode sync-catalog antes?): {name}")
+    elif args.cmd == "match":
+        print(f"{matching.link_listings(conn)} anúncios associados a cartas")
     elif args.cmd == "list":
         rows = conn.execute(
-            "SELECT source, title, price, currency, url FROM listings ORDER BY first_seen_at DESC, id DESC LIMIT ?",
+            "SELECT l.source, l.title, l.price, l.currency, l.url, l.card_id, c.name AS card_name"
+            " FROM listings l LEFT JOIN cards c ON c.id = l.card_id"
+            " ORDER BY l.first_seen_at DESC, l.id DESC LIMIT ?",
             (args.limit,),
         )
         for r in rows:
             price = f"{r['currency'] or ''} {r['price']:.2f}" if r["price"] is not None else "sem preço"
             print(f"[{r['source']}] {r['title']} — {price}\n    {r['url']}")
+            if r["card_id"]:
+                ref = valuation.reference_price(conn, r["card_id"], settings.usd_brl)
+                if ref and r["price"] is not None and r["currency"] == "BRL":
+                    diff = (ref.price_brl - r["price"]) / ref.price_brl * 100
+                    side = "abaixo" if diff >= 0 else "acima"
+                    print(f"    {r['card_name']}: referência R$ {ref.price_brl:.2f} ({ref.source}); anúncio {abs(diff):.0f}% {side}")
+                elif ref:
+                    print(f"    {r['card_name']}: referência R$ {ref.price_brl:.2f} ({ref.source})")
+                else:
+                    print(f"    {r['card_name']}: sem preço de referência")
     return 0
 
 

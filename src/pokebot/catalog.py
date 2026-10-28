@@ -43,15 +43,15 @@ def sync_cards(conn: sqlite3.Connection, client: httpx.Client, query: str, api_k
     count = 0
     for card in fetch_cards(client, query, api_key):
         conn.execute(
-            "INSERT INTO cards (id, name, number, set_id, set_name, rarity, image_url, price_usd_market,"
-            " price_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO cards (id, name, number, set_id, set_name, set_printed_total, rarity, image_url,"
+            " price_usd_market, price_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT (id) DO UPDATE SET name = excluded.name, rarity = excluded.rarity,"
-            " image_url = excluded.image_url, price_usd_market = excluded.price_usd_market,"
+            " set_printed_total = excluded.set_printed_total, image_url = excluded.image_url, price_usd_market = excluded.price_usd_market,"
             " price_updated_at = excluded.price_updated_at",
             (
                 card["id"], card["name"], card.get("number"),
                 (card.get("set") or {}).get("id"), (card.get("set") or {}).get("name"),
-                card.get("rarity"), (card.get("images") or {}).get("small"),
+                (card.get("set") or {}).get("printedTotal"), card.get("rarity"), (card.get("images") or {}).get("small"),
                 market_price_usd(card), now(),
             ),
         )
