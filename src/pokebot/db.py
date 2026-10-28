@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS liga_prices (
     collected_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS listing_analysis (
+    listing_id INTEGER PRIMARY KEY REFERENCES listings (id) ON DELETE CASCADE,
+    card_name TEXT,
+    card_number TEXT,
+    set_name TEXT,
+    card_confidence REAL,
+    condition TEXT NOT NULL,
+    condition_confidence REAL,
+    in_protective_case INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    model TEXT NOT NULL,
+    analyzed_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS listing_images (
     listing_id INTEGER NOT NULL REFERENCES listings (id) ON DELETE CASCADE,
     url TEXT NOT NULL,

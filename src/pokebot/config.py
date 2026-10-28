@@ -8,6 +8,7 @@ class Settings:
     pokemontcg_api_key: str | None
     meli_access_token: str | None
     usd_brl: float
+    vision_model: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -16,4 +17,5 @@ class Settings:
             pokemontcg_api_key=os.environ.get("POKEMONTCG_API_KEY") or None,
             meli_access_token=os.environ.get("MELI_ACCESS_TOKEN") or None,
             usd_brl=float(os.environ.get("USD_BRL", "5.50")),
+            vision_model=os.environ.get("POKEBOT_VISION_MODEL", "claude-sonnet-5-5"),
         )
