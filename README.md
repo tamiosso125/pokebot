@@ -2,16 +2,17 @@
 
 Monitora anúncios de cartas Pokémon (Mercado Livre, OLX, Shopee…), compara com o preço de referência, analisa as fotos e avisa quando vale a pena comprar para revenda.
 
-## Estado atual (etapas 1 e 2)
+## Estado atual (etapas 1 a 3)
 
 - Banco SQLite local (`data/pokebot.db`).
 - Catálogo de cartas e preço de referência em USD (TCGPlayer) via [pokemontcg.io](https://pokemontcg.io).
 - Coletor do Mercado Livre.
 - Entrada manual de anúncios (OLX, Shopee) enquanto não há coletor automático.
 - Associação do anúncio à carta pelo número impresso no título (ex.: `194/203`).
+- Análise de imagem (`pokebot analyze`): um modelo de visão lê a carta (nome e número) e estima a condição (NM/LP/MP/HP/DMG/unknown) com confiança; carta em sleeve/pasta ou foto ruim baixa a confiança. Se o título não trazia o número, o número lido na foto liga o anúncio à carta.
 - Preço de referência: LigaPokemon (importado de CSV) se existir; senão o dólar do TCGPlayer convertido por `USD_BRL`.
 
-Ainda não existem: coleta automática da LigaPokemon (por enquanto o CSV é preenchido à mão), identificação por imagem, painel e alertas.
+Ainda não existem: coleta automática da LigaPokemon (por enquanto o CSV é preenchido à mão), painel e alertas.
 
 ## Como usar
 
@@ -25,8 +26,11 @@ pokebot search-ml --query 'carta pokemon charizard'
 pokebot add-manual --source olx --url https://... --title 'Charizard base' --price 120 --image https://...
 pokebot match                      # liga anúncios às cartas do catálogo
 pokebot import-liga precos.csv     # CSV: nome,numero,preco_brl,url
+pokebot analyze --limit 10         # precisa de ANTHROPIC_API_KEY; cada anúncio = 1 chamada paga
 pokebot list                       # mostra anúncio vs. preço de referência
 pytest
 ```
 
 > A busca pública do Mercado Livre pode exigir token. Se responder 401/403, o comando avisa; crie um app em developers.mercadolivre.com.br e defina `MELI_ACCESS_TOKEN`. Este coletor ainda não foi testado contra a API real.
+
+> Condição vem de fotos: é uma estimativa, não nota oficial. Miniaturas do Mercado Livre são pequenas e rendem análise fraca; prefira fotos grandes.
